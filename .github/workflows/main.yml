@@ -1,0 +1,58 @@
+name: Auto Posts
+
+on:
+  schedule:
+    # Утро 08:00 МСК (05:00 UTC)
+    - cron: '0 5 * * *'
+    # Вечер 20:00 МСК (17:00 UTC)
+    - cron: '0 17 * * *'
+  workflow_dispatch:
+
+jobs:
+  morning:
+    if: github.event.schedule == '0 5 * * *' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install requests
+      - name: Morning Finance
+        env:
+          BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+          CHAT_FINANCE: ${{ secrets.CHAT_FINANCE }}
+          CHAT_QUOTES: ${{ secrets.CHAT_QUOTES }}
+          MODE: morning_finance
+        run: python bot.py
+      - name: Morning Quotes
+        env:
+          BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+          CHAT_FINANCE: ${{ secrets.CHAT_FINANCE }}
+          CHAT_QUOTES: ${{ secrets.CHAT_QUOTES }}
+          MODE: morning_quotes
+        run: python bot.py
+
+  evening:
+    if: github.event.schedule == '0 17 * * *' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install requests
+      - name: Evening Finance
+        env:
+          BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+          CHAT_FINANCE: ${{ secrets.CHAT_FINANCE }}
+          CHAT_QUOTES: ${{ secrets.CHAT_QUOTES }}
+          MODE: evening_finance
+        run: python bot.py
+      - name: Evening Quotes
+        env:
+          BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+          CHAT_FINANCE: ${{ secrets.CHAT_FINANCE }}
+          CHAT_QUOTES: ${{ secrets.CHAT_QUOTES }}
+          MODE: evening_quotes
+        run: python bot.py
