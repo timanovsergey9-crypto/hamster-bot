@@ -38,6 +38,26 @@ def send(chat_id: str, text: str) -> bool:
         logger.error(f"Ошибка отправки: {e}")
         return False
 
+def send_photo(chat_id: str, photo_url: str, caption: str) -> bool:
+    if not TOKEN or not chat_id:
+        logger.error("Не заданы TOKEN или CHAT_ID")
+        return False
+    url = f"https://api.telegram.org/bot{TOKEN}/sendPhoto"
+    payload = {
+        "chat_id": chat_id,
+        "photo": photo_url,
+        "caption": caption,
+        "parse_mode": "HTML"
+    }
+    try:
+        resp = requests.post(url, json=payload, timeout=TIMEOUT)
+        resp.raise_for_status()
+        logger.info(f"Фото отправлено в {chat_id}")
+        return True
+    except Exception as e:
+        logger.error(f"Ошибка отправки фото: {e}")
+        return False
+
 def get_market_data():
     fng = safe_get("https://api.alternative.me/fng/?limit=1")
     fng_value = fng["data"][0] if fng and "data" in fng else {"value": "?", "value_classification": "N/A"}
@@ -277,8 +297,17 @@ FALLBACK_QUOTES = [
     ("Сосредоточься на решениях, а не на настроении.", ""),
 ]
 
+QUOTE_IMAGES = [
+    "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=1200&q=80",
+    "https://images.unsplash.com/photo-1469474968028-56623f02e42e?w=1200&q=80",
+    "https://images.unsplash.com/photo-1441974231531-c6227db76b6e?w=1200&q=80",
+    "https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?w=1200&q=80",
+    "https://images.unsplash.com/photo-1426604966848-d7adac402bff?w=1200&q=80",
+    "https://images.unsplash.com/photo-1472214103451-9374bd1c798e?w=1200&q=80",
+    "https://images.unsplash.com/photo-1447752875215-b2761acb3c5d?w=1200&q=80",
+]
+
 def get_quote():
-    # Пробуем несколько источников
     sources = [
         ("http://api.forismatic.com/api/1.0/", {"method": "getQuote", "format": "json", "lang": "ru"}, "quoteText", "quoteAuthor"),
     ]
@@ -288,8 +317,6 @@ def get_quote():
             text = q[text_key].strip()
             author = q.get(author_key, "").strip() or "Неизвестный автор"
             return text, author
-    
-    # Большой запасной список
     return random.choice(FALLBACK_QUOTES)
 
 def morning_quotes():
@@ -302,13 +329,14 @@ def morning_quotes():
         "Начни с малого. Главное — начать.",
         "Твоя цель ждёт тебя. Сделай хоть один шаг.",
     ]
-    text = f"""🌅 <b>Доброе утро, Хомяк Live</b>
+    caption = f"""🌅 <b>Доброе утро, Хомяк Live</b>
 
 «{quote}»
 {author_line}
 
 {random.choice(comments)}"""
-    send(CHAT_QUOTES, text)
+    image = random.choice(QUOTE_IMAGES)
+    send_photo(CHAT_QUOTES, image, caption)
 
 def evening_quotes():
     quote, author = get_quote()
@@ -320,13 +348,14 @@ def evening_quotes():
         "День закончился. Ты молодец, что дошёл до вечера.",
         "Завтра будет лучше, если сегодня ты не сдался.",
     ]
-    text = f"""🌙 <b>Спокойной ночи, Хомяк Live</b>
+    caption = f"""🌙 <b>Спокойной ночи, Хомяк Live</b>
 
 «{quote}»
 {author_line}
 
 {random.choice(comments)}"""
-    send(CHAT_QUOTES, text)
+    image = random.choice(QUOTE_IMAGES)
+    send_photo(CHAT_QUOTES, image, caption)
 
 if __name__ == "__main__":
     mode = os.getenv("MODE", "morning_finance")
