@@ -4,8 +4,14 @@ on:
   schedule:
     # Утро 08:00 МСК (05:00 UTC)
     - cron: '0 5 * * *'
+    # День 12:30 МСК (09:30 UTC)
+    - cron: '30 9 * * *'
+    # День 16:00 МСК (13:00 UTC)
+    - cron: '0 13 * * *'
     # Вечер 20:00 МСК (17:00 UTC)
     - cron: '0 17 * * *'
+    # Вечер Live 21:00 МСК (18:00 UTC)
+    - cron: '0 18 * * *'
   workflow_dispatch:
 
 jobs:
@@ -33,6 +39,40 @@ jobs:
           MODE: morning_quotes
         run: python bot.py
 
+  midday:
+    if: github.event.schedule == '30 9 * * *' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install requests
+      - name: Midday Finance
+        env:
+          BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+          CHAT_FINANCE: ${{ secrets.CHAT_FINANCE }}
+          CHAT_QUOTES: ${{ secrets.CHAT_QUOTES }}
+          MODE: midday_finance
+        run: python bot.py
+
+  afternoon:
+    if: github.event.schedule == '0 13 * * *' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install requests
+      - name: Afternoon Finance
+        env:
+          BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+          CHAT_FINANCE: ${{ secrets.CHAT_FINANCE }}
+          CHAT_QUOTES: ${{ secrets.CHAT_QUOTES }}
+          MODE: afternoon_finance
+        run: python bot.py
+
   evening:
     if: github.event.schedule == '0 17 * * *' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
@@ -49,6 +89,16 @@ jobs:
           CHAT_QUOTES: ${{ secrets.CHAT_QUOTES }}
           MODE: evening_finance
         run: python bot.py
+
+  evening_quotes:
+    if: github.event.schedule == '0 18 * * *' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install requests
       - name: Evening Quotes
         env:
           BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
