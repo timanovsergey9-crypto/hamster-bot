@@ -2,7 +2,8 @@ import os
 import requests
 import logging
 import random
-from typing import Optional, Dict, Any
+from datetime import datetime, timezone, timedelta
+from typing import Optional, Dict, Any, List
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
@@ -11,6 +12,7 @@ TOKEN = os.getenv("BOT_TOKEN")
 CHAT_FINANCE = os.getenv("CHAT_FINANCE")
 CHAT_QUOTES = os.getenv("CHAT_QUOTES")
 TIMEOUT = 15
+MSK = timezone(timedelta(hours=3))
 
 def safe_get(url: str, params: Optional[Dict] = None) -> Optional[Dict[str, Any]]:
     try:
@@ -46,11 +48,9 @@ def get_market_data():
     prices = safe_get("https://api.coingecko.com/api/v3/simple/price", params={
         "ids": "bitcoin,ethereum,solana,binancecoin",
         "vs_currencies": "usd",
-        "include_24hr_change": "true",
-        "include_24hr_vol": "true"
+        "include_24hr_change": "true"
     })
     
-    # Top coins for movers
     markets = safe_get("https://api.coingecko.com/api/v3/coins/markets", params={
         "vs_currency": "usd",
         "order": "market_cap_desc",
@@ -69,6 +69,39 @@ def get_market_data():
         "trending": trending or {}
     }
 
+def get_economic_calendar(days_ahead: int = 1) -> List[Dict]:
+    data = safe_get("https://pipatlas.com/api/calendar")
+    if not data or "events" not in data:
+        return []
+    
+    now = datetime.now(MSK)
+    today = now.date()
+    result = []
+    
+    for ev in data["events"]:
+        if ev.get("impact") not in ("High", "Medium"):
+            continue
+        try:
+            # date примерно в формате ISO с оффсетом
+            dt = datetime.fromisoformat(ev["date"].replace("Z", "+00:00"))
+            dt_msk = dt.astimezone(MSK)
+            if dt_msk.date() == today or (dt_msk.date() - today).days <= days_ahead:
+                result.append({
+                    "name": ev.get("name", ""),
+                    "currency": ev.get("currency", ""),
+                    "impact": ev.get("impact", ""),
+                    "time_msk": dt_msk.strftime("%H:%M"),
+                    "forecast": ev.get("forecast", ""),
+                    "previous": ev.get("previous", ""),
+                    "dt": dt_msk
+                })
+        except Exception:
+            continue
+    
+    # Сортируем по времени
+    result.sort(key=lambda x: x["dt"])
+    return result[:8]
+
 def format_price(price_data, coin, symbol):
     if not price_data or coin not in price_data:
         return f"• {symbol}: нет данных"
@@ -77,31 +110,43 @@ def format_price(price_data, coin, symbol):
     emoji = "🟢" if change >= 0 else "🔴"
     return f"• <b>{symbol}</b>: ${p['usd']:,.0f} ({emoji} {change:+.1f}%)"
 
-def get_top_movers(markets, n=3):
+def get_top_movers(markets, n=2):
     if not markets:
-        return "Нет данных по движениям"
-    sorted_gainers = sorted(markets, key=lambda x: x.get("price_change_percentage_24h") or 0, reverse=True)[:n]
-    sorted_losers = sorted(markets, key=lambda x: x.get("price_change_percentage_24h") or 0)[:n]
+        return ""
+    gainers = sorted(markets, key=lambda x: x.get("price_change_percentage_24h") or 0, reverse=True)[:n]
+    losers = sorted(markets, key=lambda x: x.get("price_change_percentage_24h") or 0)[:n]
     
-    gainers = "\n".join([f"🟢 {c['symbol'].upper()}: {c.get('price_change_percentage_24h', 0):+.1f}%" for c in sorted_gainers])
-    losers = "\n".join([f"🔴 {c['symbol'].upper()}: {c.get('price_change_percentage_24h', 0):+.1f}%" for c in sorted_losers])
-    return f"<b>Топ рост:</b>\n{gainers}\n\n<b>Топ падение:</b>\n{losers}"
+    g = "\n".join([f"🟢 {c['symbol'].upper()}: {c.get('price_change_percentage_24h', 0):+.1f}%" for c in gainers])
+    l = "\n".join([f"🔴 {c['symbol'].upper()}: {c.get('price_change_percentage_24h', 0):+.1f}%" for c in losers])
+    return f"<b>Топ движения:</b>\n{g}\n{l}"
 
 def get_fng_comment(fng_value):
     try:
         val = int(fng_value)
         if val <= 25:
-            return "Рынок в страхе. Исторически такие уровни часто были хорошими точками для накопления, но никто не знает дна."
+            return "Рынок в страхе. Такие уровни исторически часто были интересными для накопления, но никто не гарантирует дно."
         elif val <= 45:
-            return "Осторожность на рынке. Многие ждут дальнейшего снижения."
+            return "Осторожность. Многие ждут дальнейшего снижения."
         elif val <= 55:
-            return "Нейтральная зона. Рынок в ожидании."
+            return "Нейтральная зона. Рынок в ожидании триггера."
         elif val <= 75:
             return "Жадность растёт. Многие уже в позициях."
         else:
             return "Экстремальная жадность. Исторически такие уровни часто предшествовали коррекциям."
     except:
-        return "Данные по настроениям рынка недоступны."
+        return ""
+
+def event_comment(name: str) -> str:
+    name_l = name.lower()
+    if any(x in name_l for x in ["unemployment", "non-farm", "nfp", "employment"]):
+        return " — сильно влияет на доллар и риск-активы. Лучше не торговать за 15–30 мин до и после."
+    if any(x in name_l for x in ["cpi", "inflation", "pce"]):
+        return " — ключевой показатель для ФРС и рынка. Высокая волатильность."
+    if any(x in name_l for x in ["fomc", "rate", "interest", "monetary policy"]):
+        return " — решение по ставке двигает все рынки. Особенно опасно."
+    if "gdp" in name_l:
+        return " — общий рост экономики, влияет на настроения."
+    return ""
 
 def morning_finance():
     data = get_market_data()
@@ -112,12 +157,23 @@ def morning_finance():
     fng = data["fng"]
     global_info = data["global"]
     prices = data["prices"]
-    
     btc_dom = global_info.get("market_cap_percentage", {}).get("btc", 0)
     total_mcap = global_info.get("total_market_cap", {}).get("usd", 0)
     
     comment = get_fng_comment(fng.get("value", "50"))
     movers = get_top_movers(data.get("markets", []), 2)
+    
+    # Экономический календарь на сегодня
+    calendar = get_economic_calendar(0)
+    cal_text = ""
+    if calendar:
+        lines = []
+        for ev in calendar:
+            impact_emoji = "🔴" if ev["impact"] == "High" else "🟡"
+            extra = event_comment(ev["name"])
+            forecast = f" (прогноз: {ev['forecast']})" if ev["forecast"] else ""
+            lines.append(f"{impact_emoji} {ev['time_msk']} МСК — {ev['currency']} {ev['name']}{forecast}{extra}")
+        cal_text = "\n\n📅 <b>Важные новости сегодня:</b>\n" + "\n".join(lines) + "\n\n<i>Во время высокоимпактных новостей лучше не открывать новые позиции.</i>"
     
     text = f"""📊 <b>Утренний обзор | Палата Хомяка</b>
 
@@ -133,7 +189,7 @@ def morning_finance():
 👑 Доминация BTC: {btc_dom:.1f}%
 💰 Общая капитализация: ${total_mcap/1e12:.2f}T
 
-{movers}
+{movers}{cal_text}
 
 ⚠️ <i>Информационный контент. Не является финансовой рекомендацией.</i>"""
     send(CHAT_FINANCE, text)
@@ -146,7 +202,6 @@ def midday_finance():
     
     trending = data.get("trending", {}).get("coins", [])[:3]
     trending_text = "\n".join([f"• {c['item']['name']} ({c['item']['symbol']})" for c in trending]) if trending else "Нет данных"
-    
     movers = get_top_movers(data.get("markets", []), 3)
     
     text = f"""💡 <b>Дневной срез | Палата Хомяка</b>
@@ -156,7 +211,7 @@ def midday_finance():
 
 {movers}
 
-Рынок живёт. Кто-то уже заработал, кто-то ждёт. А ты где?
+Рынок живёт своей жизнью. Кто-то уже заработал, кто-то ждёт. А ты где сегодня?
 
 ⚠️ <i>Информационный контент.</i>"""
     send(CHAT_FINANCE, text)
@@ -165,13 +220,13 @@ def afternoon_finance():
     data = get_market_data()
     prices = data.get("prices", {}) if data else {}
     
-    text = f"""📉 <b>Как дела к вечеру | Палата Хомяка</b>
+    text = f"""📉 <b>К вечеру | Палата Хомяка</b>
 
 Краткий срез:
 {format_price(prices, 'bitcoin', 'BTC')}
 {format_price(prices, 'ethereum', 'ETH')}
 
-Если утром был страх — проверь, не изменилось ли что-то.
+Если утром был страх — проверь, не изменилось ли что-то к вечеру.
 Если была жадность — не забывай фиксировать часть прибыли.
 
 Как твой день прошёл?
@@ -211,7 +266,6 @@ def get_quote():
         ("Сила воли — это мышца. Тренируй её каждый день.", ""),
         ("Сегодня — лучший день, чтобы начать.", ""),
         ("Маленькие шаги каждый день приводят к большим результатам.", ""),
-        ("Тот, кто не рискует, ничего не достигает.", ""),
     ]
     return random.choice(fallbacks)
 
