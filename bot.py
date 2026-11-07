@@ -11,7 +11,9 @@ logger = logging.getLogger(__name__)
 TOKEN = os.getenv("BOT_TOKEN")
 CHAT_FINANCE = os.getenv("CHAT_FINANCE")
 CHAT_QUOTES = os.getenv("CHAT_QUOTES")
-TIMEOUT = 15
+CHAT_HYPE = os.getenv("CHAT_HYPE", "@ELEVATIONLIVE")
+XAI_API_KEY = os.getenv("XAI_API_KEY")
+TIMEOUT = 30
 MSK = timezone(timedelta(hours=3))
 
 def safe_get(url: str, params: Optional[Dict] = None) -> Optional[Dict[str, Any]]:
@@ -57,6 +59,88 @@ def send_photo(chat_id: str, photo_url: str, caption: str) -> bool:
     except Exception as e:
         logger.error(f"Ошибка отправки фото: {e}")
         return False
+
+# ==================== GROK ====================
+
+def call_grok(system: str, user_prompt: str, use_tools: bool = True) -> Optional[str]:
+    if not XAI_API_KEY:
+        logger.error("XAI_API_KEY не задан")
+        return None
+
+    url = "https://api.x.ai/v1/chat/completions"
+    headers = {
+        "Authorization": f"Bearer {XAI_API_KEY}",
+        "Content-Type": "application/json"
+    }
+
+    payload = {
+        "model": "grok-4",
+        "messages": [
+            {"role": "system", "content": system},
+            {"role": "user", "content": user_prompt}
+        ],
+        "temperature": 0.85,
+        "max_tokens": 1200
+    }
+
+    if use_tools:
+        payload["tools"] = [
+            {"type": "web_search"},
+            {"type": "x_search"}
+        ]
+
+    try:
+        resp = requests.post(url, headers=headers, json=payload, timeout=90)
+        resp.raise_for_status()
+        data = resp.json()
+        content = data["choices"][0]["message"]["content"].strip()
+        logger.info("Grok успешно сгенерировал пост")
+        return content
+    except Exception as e:
+        logger.error(f"Ошибка вызова Grok: {e}")
+        return None
+
+def grok_finance_post(slot: str):
+    system = """Ты автор Telegram-канала «Палата Хомяка».
+Пишешь живые, полезные, честные посты про крипту, рынок и психологию трейдинга.
+Стиль: прямой, с характером, без воды и пафоса. Можно с лёгкой иронией.
+Длина: 500–900 символов.
+Структура: заголовок с эмодзи → основной текст → короткий вывод или вопрос.
+Не давай финансовых рекомендаций. Всегда добавляй в конце дисклеймер."""
+
+    prompts = {
+        "morning": "Напиши утренний живой пост для Палаты Хомяка. Посмотри свежие данные по рынку (BTC, ETH, Fear & Greed, важные новости) и дай честный взгляд на начало дня. Сделай полезно и по-человечески.",
+        "midday": "Напиши дневной пост для Палаты Хомяка. Можешь разобрать текущую ситуацию на рынке, психологию трейдеров или дать практический совет. Сделай живо и полезно.",
+        "evening": "Напиши вечерний пост для Палаты Хомяка. Подведи итоги дня на рынке, дай мысли на ночь или полезный вывод. Стиль живой и честный."
+    }
+
+    text = call_grok(system, prompts.get(slot, prompts["midday"]))
+    if text:
+        if "не является" not in text.lower() and "рекомендац" not in text.lower():
+            text += "\n\n⚠️ <i>Информационный контент. Не является финансовой рекомендацией.</i>"
+        send(CHAT_FINANCE, text)
+    else:
+        logger.error(f"Не удалось сгенерировать Grok-пост ({slot})")
+
+def grok_motivation_post():
+    system = """Ты автор канала «Хомяк Хайф / Хомяк Live» (@ELEVATIONLIVE).
+Пишешь сильную, качественную мотивацию для людей, которые растут, работают над собой и идут к целям.
+Стиль: мощный, честный, без дешёвого пафоса и шаблонных фраз.
+Можно использовать короткие истории, жёсткую правду или глубокие мысли.
+Длина: 400–700 символов.
+Всегда заканчивай сильной фразой или призывом к действию."""
+
+    user_prompt = """Напиши один сильный мотивационный пост на сегодня.
+Сделай его живым, полезным и цепляющим. Можно затронуть дисциплину, рост, преодоление слабости, путь или внутреннюю силу.
+Избегай банальных цитат и воды."""
+
+    text = call_grok(system, user_prompt, use_tools=True)
+    if text:
+        send(CHAT_HYPE, text)
+    else:
+        logger.error("Не удалось сгенерировать мотивационный пост")
+
+# ==================== СТАРАЯ ЛОГИКА ====================
 
 def get_market_data():
     fng = safe_get("https://api.alternative.me/fng/?limit=1")
@@ -390,6 +474,10 @@ if __name__ == "__main__":
         "evening_finance": evening_finance,
         "morning_quotes": morning_quotes,
         "evening_quotes": evening_quotes,
+        "grok_morning": lambda: grok_finance_post("morning"),
+        "grok_midday": lambda: grok_finance_post("midday"),
+        "grok_evening": lambda: grok_finance_post("evening"),
+        "grok_motivation": grok_motivation_post,
     }
     func = modes.get(mode)
     if func:
