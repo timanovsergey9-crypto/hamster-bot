@@ -2,15 +2,17 @@ name: Auto Posts
 
 on:
   schedule:
-    # Утро 08:00 МСК (05:00 UTC)
+    # Утро 08:00 МСК (05:00 UTC) — старые + Grok morning
     - cron: '0 5 * * *'
-    # День 12:30 МСК (09:30 UTC)
+    # День 12:30 МСК (09:30 UTC) — старый midday + Grok midday
     - cron: '30 9 * * *'
+    # Обед 13:30 МСК (10:30 UTC) — мотивация Хомяк Хайф
+    - cron: '30 10 * * *'
     # День 16:00 МСК (13:00 UTC)
     - cron: '0 13 * * *'
-    # Вечер 20:00 МСК (17:00 UTC)
+    # Вечер 20:00 МСК (17:00 UTC) — старый + Grok evening
     - cron: '0 17 * * *'
-    # Вечер Live 21:00 МСК (18:00 UTC)
+    # Вечер 21:00 МСК (18:00 UTC)
     - cron: '0 18 * * *'
   workflow_dispatch:
 
@@ -24,19 +26,30 @@ jobs:
         with:
           python-version: '3.11'
       - run: pip install requests
-      - name: Morning Finance
+      - name: Morning Finance (old)
         env:
           BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
           CHAT_FINANCE: ${{ secrets.CHAT_FINANCE }}
           CHAT_QUOTES: ${{ secrets.CHAT_QUOTES }}
+          XAI_API_KEY: ${{ secrets.XAI_API_KEY }}
           MODE: morning_finance
         run: python bot.py
-      - name: Morning Quotes
+      - name: Morning Quotes (old)
         env:
           BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
           CHAT_FINANCE: ${{ secrets.CHAT_FINANCE }}
           CHAT_QUOTES: ${{ secrets.CHAT_QUOTES }}
+          XAI_API_KEY: ${{ secrets.XAI_API_KEY }}
           MODE: morning_quotes
+        run: python bot.py
+      - name: Grok Morning (new)
+        env:
+          BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+          CHAT_FINANCE: ${{ secrets.CHAT_FINANCE }}
+          CHAT_QUOTES: ${{ secrets.CHAT_QUOTES }}
+          CHAT_HYPE: ${{ secrets.CHAT_HYPE }}
+          XAI_API_KEY: ${{ secrets.XAI_API_KEY }}
+          MODE: grok_morning
         run: python bot.py
 
   midday:
@@ -48,12 +61,41 @@ jobs:
         with:
           python-version: '3.11'
       - run: pip install requests
-      - name: Midday Finance
+      - name: Midday Finance (old)
         env:
           BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
           CHAT_FINANCE: ${{ secrets.CHAT_FINANCE }}
           CHAT_QUOTES: ${{ secrets.CHAT_QUOTES }}
+          XAI_API_KEY: ${{ secrets.XAI_API_KEY }}
           MODE: midday_finance
+        run: python bot.py
+      - name: Grok Midday (new)
+        env:
+          BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+          CHAT_FINANCE: ${{ secrets.CHAT_FINANCE }}
+          CHAT_QUOTES: ${{ secrets.CHAT_QUOTES }}
+          CHAT_HYPE: ${{ secrets.CHAT_HYPE }}
+          XAI_API_KEY: ${{ secrets.XAI_API_KEY }}
+          MODE: grok_midday
+        run: python bot.py
+
+  motivation:
+    if: github.event.schedule == '30 10 * * *' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install requests
+      - name: Grok Motivation (Хомяк Хайф)
+        env:
+          BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+          CHAT_FINANCE: ${{ secrets.CHAT_FINANCE }}
+          CHAT_QUOTES: ${{ secrets.CHAT_QUOTES }}
+          CHAT_HYPE: ${{ secrets.CHAT_HYPE }}
+          XAI_API_KEY: ${{ secrets.XAI_API_KEY }}
+          MODE: grok_motivation
         run: python bot.py
 
   afternoon:
@@ -70,6 +112,7 @@ jobs:
           BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
           CHAT_FINANCE: ${{ secrets.CHAT_FINANCE }}
           CHAT_QUOTES: ${{ secrets.CHAT_QUOTES }}
+          XAI_API_KEY: ${{ secrets.XAI_API_KEY }}
           MODE: afternoon_finance
         run: python bot.py
 
@@ -82,12 +125,22 @@ jobs:
         with:
           python-version: '3.11'
       - run: pip install requests
-      - name: Evening Finance
+      - name: Evening Finance (old)
         env:
           BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
           CHAT_FINANCE: ${{ secrets.CHAT_FINANCE }}
           CHAT_QUOTES: ${{ secrets.CHAT_QUOTES }}
+          XAI_API_KEY: ${{ secrets.XAI_API_KEY }}
           MODE: evening_finance
+        run: python bot.py
+      - name: Grok Evening (new)
+        env:
+          BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+          CHAT_FINANCE: ${{ secrets.CHAT_FINANCE }}
+          CHAT_QUOTES: ${{ secrets.CHAT_QUOTES }}
+          CHAT_HYPE: ${{ secrets.CHAT_HYPE }}
+          XAI_API_KEY: ${{ secrets.XAI_API_KEY }}
+          MODE: grok_evening
         run: python bot.py
 
   evening_quotes:
@@ -104,5 +157,6 @@ jobs:
           BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
           CHAT_FINANCE: ${{ secrets.CHAT_FINANCE }}
           CHAT_QUOTES: ${{ secrets.CHAT_QUOTES }}
+          XAI_API_KEY: ${{ secrets.XAI_API_KEY }}
           MODE: evening_quotes
         run: python bot.py
