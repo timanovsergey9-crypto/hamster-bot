@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 TOKEN = os.getenv("BOT_TOKEN")
 CHAT_FINANCE = os.getenv("CHAT_FINANCE")
 CHAT_QUOTES = os.getenv("CHAT_QUOTES")
-CHAT_HYPE = os.getenv("CHAT_HYPE", "@ELEVATIONLIVE")
+CHAT_HYPE = os.getenv("CHAT_HYPE") or "@ELEVATIONLIVE"
 XAI_API_KEY = os.getenv("XAI_API_KEY")
 TIMEOUT = 30
 MSK = timezone(timedelta(hours=3))
@@ -27,7 +27,7 @@ def safe_get(url: str, params: Optional[Dict] = None) -> Optional[Dict[str, Any]
 
 def send(chat_id: str, text: str) -> bool:
     if not TOKEN or not chat_id:
-        logger.error("Не заданы TOKEN или CHAT_ID")
+        logger.error(f"Не заданы TOKEN или CHAT_ID (chat_id={chat_id})")
         return False
     url = f"https://api.telegram.org/bot{TOKEN}/sendMessage"
     payload = {"chat_id": chat_id, "text": text, "parse_mode": "HTML", "disable_web_page_preview": True}
@@ -37,7 +37,7 @@ def send(chat_id: str, text: str) -> bool:
         logger.info(f"Сообщение отправлено в {chat_id}")
         return True
     except Exception as e:
-        logger.error(f"Ошибка отправки: {e}")
+        logger.error(f"Ошибка отправки в {chat_id}: {e}")
         return False
 
 def send_photo(chat_id: str, photo_url: str, caption: str) -> bool:
@@ -62,7 +62,7 @@ def send_photo(chat_id: str, photo_url: str, caption: str) -> bool:
 
 # ==================== GROK ====================
 
-def call_grok(system: str, user_prompt: str, use_tools: bool = True) -> Optional[str]:
+def call_grok(system: str, user_prompt: str, use_tools: bool = False) -> Optional[str]:
     if not XAI_API_KEY:
         logger.error("XAI_API_KEY не задан")
         return None
@@ -73,14 +73,15 @@ def call_grok(system: str, user_prompt: str, use_tools: bool = True) -> Optional
         "Content-Type": "application/json"
     }
 
+    # Используем стабильную модель
     payload = {
-        "model": "grok-4",
+        "model": "grok-3",
         "messages": [
             {"role": "system", "content": system},
             {"role": "user", "content": user_prompt}
         ],
-        "temperature": 0.92,
-        "max_tokens": 1100
+        "temperature": 0.9,
+        "max_tokens": 1000
     }
 
     if use_tools:
@@ -91,7 +92,13 @@ def call_grok(system: str, user_prompt: str, use_tools: bool = True) -> Optional
 
     try:
         resp = requests.post(url, headers=headers, json=payload, timeout=90)
-        resp.raise_for_status()
+        if resp.status_code != 200:
+            logger.error(f"Grok API error {resp.status_code}: {resp.text[:500]}")
+            # Fallback без tools
+            if use_tools:
+                logger.info("Пробуем без tools...")
+                return call_grok(system, user_prompt, use_tools=False)
+            return None
         data = resp.json()
         content = data["choices"][0]["message"]["content"].strip()
         logger.info("Grok успешно сгенерировал пост")
@@ -114,7 +121,7 @@ def grok_finance_post(slot: str):
         "evening": "Напиши вечерний пост для Палаты Хомяка. Подведи итоги дня на рынке, дай мысли на ночь или полезный вывод. Стиль живой и честный."
     }
 
-    text = call_grok(system, prompts.get(slot, prompts["midday"]))
+    text = call_grok(system, prompts.get(slot, prompts["midday"]), use_tools=True)
     if text:
         if "не является" not in text.lower() and "рекомендац" not in text.lower():
             text += "\n\n⚠️ <i>Информационный контент. Не является финансовой рекомендацией.</i>"
@@ -124,17 +131,20 @@ def grok_finance_post(slot: str):
 
 def grok_motivation_post():
     """Сильная уникальная мотивация для Хомяк Live"""
+    target = CHAT_HYPE or "@ELEVATIONLIVE"
+    logger.info(f"Отправляем мотивацию в: {target}")
+
     system = """Ты автор канала «Хомяк Live» (@ELEVATIONLIVE).
 Твоя задача — писать мощные, умные и живые мотивационные посты для людей, которые растут, работают с рынком, деньгами и собой.
 
 Правила стиля:
 - Без дешёвого пафоса, шаблонных фраз и «ты можешь всё».
-- Можно и нужно использовать мысли и цитаты из серьёзных книг (особенно финансовых, психологических и про дисциплину): «Психология денег» Моргана Хаузела, «Маленькая книга о инвестировании» Джона Богла, Нассим Талеб, Райан Холидей, Эпиктейт, Сенека, «Атомные привычки», «Грит» Анджелы Дакворт и т.д.
+- Можно и нужно использовать мысли и цитаты из серьёзных книг (особенно финансовых, психологических и про дисциплину): «Психология денег» Моргана Хаузела, Нассим Талеб, Райан Холидей, Эпиктейт, Сенека, «Атомные привычки» и т.д.
 - Можно коротко пересказывать идею из книги и давать свой взгляд.
 - Тон: честный, взрослый, иногда жёсткий, но поддерживающий.
 - Длина: 450–750 символов.
 - Всегда заканчивай сильной, запоминающейся фразой или конкретным действием.
-- Каждый пост должен быть уникальным. Не повторяй одни и те же мысли."""
+- Каждый пост должен быть уникальным."""
 
     themes = [
         "дисциплина важнее мотивации",
@@ -155,12 +165,14 @@ def grok_motivation_post():
 
     user_prompt = f"""Напиши один сильный, уникальный мотивационный пост на тему: {theme}.
 
-Сделай его живым и глубоким. Можно опереться на идею из хорошей книги (финансовой, психологической или философской), но не превращай пост в пересказ. Добавь свой взгляд.
-Избегай банальных цитат и воды. Пост должен ощущаться свежим."""
+Сделай его живым и глубоким. Можно опереться на идею из хорошей книги, но не превращай пост в пересказ. Добавь свой взгляд.
+Избегай банальных цитат и воды."""
 
-    text = call_grok(system, user_prompt, use_tools=True)
+    text = call_grok(system, user_prompt, use_tools=False)
     if text:
-        send(CHAT_HYPE, text)
+        ok = send(target, text)
+        if not ok:
+            logger.error(f"Не удалось отправить в {target}")
     else:
         logger.error("Не удалось сгенерировать мотивационный пост")
 
@@ -382,83 +394,6 @@ def evening_finance():
 ⚠️ <i>Информационный контент. Не является финансовой рекомендацией.</i>"""
     send(CHAT_FINANCE, text)
 
-# Старые цитаты оставляем, но они идут только в CHAT_QUOTES (если он отличается от Хомяк Live)
-FALLBACK_QUOTES = [
-    ("Дисциплина — это мост между целями и достижениями.", "Наполеон Хилл"),
-    ("Сила воли — это мышца. Тренируй её каждый день.", ""),
-    ("Сегодня — лучший день, чтобы начать.", ""),
-    ("Маленькие шаги каждый день приводят к большим результатам.", ""),
-    ("Тот, кто не рискует, ничего не достигает.", ""),
-    ("Успех — это не конечная точка, а процесс.", ""),
-    ("Сосредоточься на том, что делаешь, а не на том, что планируешь.", ""),
-    ("Самая большая ошибка — ничего не делать из страха ошибиться.", ""),
-    ("Не сравнивай свой начало с чужим серединой.", ""),
-    ("Прогресс, а не совершенство.", ""),
-]
-
-QUOTE_IMAGES = [
-    "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=1200&q=80",
-    "https://images.unsplash.com/photo-1469474968028-56623f02e42e?w=1200&q=80",
-    "https://images.unsplash.com/photo-1441974231531-c6227db76b6e?w=1200&q=80",
-    "https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?w=1200&q=80",
-    "https://images.unsplash.com/photo-1426604966848-d7adac402bff?w=1200&q=80",
-]
-
-def get_quote():
-    sources = [
-        ("http://api.forismatic.com/api/1.0/", {"method": "getQuote", "format": "json", "lang": "ru"}, "quoteText", "quoteAuthor"),
-    ]
-    for url, params, text_key, author_key in sources:
-        q = safe_get(url, params=params)
-        if q and text_key in q and q[text_key].strip():
-            text = q[text_key].strip()
-            author = q.get(author_key, "").strip() or "Неизвестный автор"
-            return text, author
-    return random.choice(FALLBACK_QUOTES)
-
-def morning_quotes():
-    quote, author = get_quote()
-    author_line = f"— {author}" if author else ""
-    comments = [
-        "Сегодня сделай одно маленькое действие в сторону своей цели.",
-        "Не жди мотивации. Начни — и она придёт.",
-        "Один хороший шаг сегодня лучше десяти завтра.",
-        "Начни с малого. Главное — начать.",
-    ]
-    greeting = random.choice([
-        "🌅 <b>Доброе утро!</b>",
-        "☀️ <b>Новый день</b>",
-    ])
-    caption = f"""{greeting}
-
-«{quote}»
-{author_line}
-
-{random.choice(comments)}"""
-    image = random.choice(QUOTE_IMAGES)
-    send_photo(CHAT_QUOTES, image, caption)
-
-def evening_quotes():
-    quote, author = get_quote()
-    author_line = f"— {author}" if author else ""
-    comments = [
-        "Отдохни. Завтра снова в бой.",
-        "Что ты сегодня сделал для своего будущего?",
-        "Спокойной ночи. Завтра новые возможности.",
-    ]
-    greeting = random.choice([
-        "🌙 <b>Спокойной ночи!</b>",
-        "🌌 <b>Добрых снов</b>",
-    ])
-    caption = f"""{greeting}
-
-«{quote}»
-{author_line}
-
-{random.choice(comments)}"""
-    image = random.choice(QUOTE_IMAGES)
-    send_photo(CHAT_QUOTES, image, caption)
-
 if __name__ == "__main__":
     mode = os.getenv("MODE", "morning_finance")
     logger.info(f"Запуск в режиме: {mode}")
@@ -467,8 +402,6 @@ if __name__ == "__main__":
         "midday_finance": midday_finance,
         "afternoon_finance": afternoon_finance,
         "evening_finance": evening_finance,
-        "morning_quotes": morning_quotes,
-        "evening_quotes": evening_quotes,
         "grok_morning": lambda: grok_finance_post("morning"),
         "grok_midday": lambda: grok_finance_post("midday"),
         "grok_evening": lambda: grok_finance_post("evening"),
