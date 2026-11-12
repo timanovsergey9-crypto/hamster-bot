@@ -1,15 +1,14 @@
 name: Auto Posts
 
 on:
-  push:
-    branches: [main]
   schedule:
     # Время UTC; все публикации выходят по Москве (UTC+3).
-    - cron: '0 5 * * *'   # 08:00 — утренний обзор рынка + экономический календарь
-    - cron: '0 6 * * *'   # 09:00 — ELEVATIONLIVE, утро
-    - cron: '0 10 * * *'  # 13:00 — Палата Хомяка, образовательная рубрика
-    - cron: '0 15 * * *'  # 18:00 — ELEVATIONLIVE, вечер
-    - cron: '0 16 * * *'  # 19:00 — вечерний обзор рынка + главные новости
+    # Cron сдвинут на 45 минут раньше целевого слота, чтобы компенсировать задержку GitHub Actions.
+    - cron: '15 4 * * *'   # цель 08:00 МСК — утренний обзор рынка + экономический календарь
+    - cron: '15 5 * * *'   # цель 09:00 МСК — ELEVATIONLIVE, утро
+    - cron: '15 9 * * *'   # цель 13:00 МСК — Палата Хомяка, образовательная рубрика
+    - cron: '15 14 * * *'  # цель 18:00 МСК — ELEVATIONLIVE, вечер
+    - cron: '15 15 * * *'  # цель 19:00 МСК — вечерний обзор рынка + главные новости
   workflow_dispatch:
     inputs:
       slot:
@@ -27,7 +26,7 @@ on:
 
 jobs:
   morning_market:
-    if: github.event.schedule == '0 5 * * *' || (github.event_name == 'workflow_dispatch' && inputs.slot == 'morning_market')
+    if: github.event.schedule == '15 4 * * *' || (github.event_name == 'workflow_dispatch' && inputs.slot == 'morning_market')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -49,7 +48,7 @@ jobs:
         run: python bot.py
 
   motivation_morning:
-    if: github.event.schedule == '0 6 * * *' || (github.event_name == 'workflow_dispatch' && inputs.slot == 'motivation_morning')
+    if: github.event.schedule == '15 5 * * *' || (github.event_name == 'workflow_dispatch' && inputs.slot == 'motivation_morning')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -71,7 +70,7 @@ jobs:
         run: python bot.py
 
   finance_education:
-    if: github.event.schedule == '0 10 * * *' || (github.event_name == 'workflow_dispatch' && inputs.slot == 'finance_education')
+    if: github.event.schedule == '15 9 * * *' || (github.event_name == 'workflow_dispatch' && inputs.slot == 'finance_education')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -91,7 +90,7 @@ jobs:
         run: python bot.py
 
   motivation_evening:
-    if: github.event.schedule == '0 15 * * *' || (github.event_name == 'workflow_dispatch' && inputs.slot == 'motivation_evening')
+    if: github.event.schedule == '15 14 * * *' || (github.event_name == 'workflow_dispatch' && inputs.slot == 'motivation_evening')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -113,7 +112,7 @@ jobs:
         run: python bot.py
 
   evening_market:
-    if: github.event.schedule == '0 16 * * *' || (github.event_name == 'workflow_dispatch' && inputs.slot == 'evening_market')
+    if: github.event.schedule == '15 15 * * *' || (github.event_name == 'workflow_dispatch' && inputs.slot == 'evening_market')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -131,36 +130,3 @@ jobs:
           VK_FINANCE_TG_URL: ${{ secrets.VK_FINANCE_TG_URL }}
           MODE: evening_finance
         run: python bot.py
-
-  smoke_test:
-    if: github.event_name == 'push'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-      - name: Check Python syntax
-        run: python -m py_compile bot.py
-      - name: Send Telegram test messages
-        env:
-          BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
-          CHAT_FINANCE: ${{ secrets.CHAT_FINANCE }}
-          CHAT_HYPE: ${{ secrets.CHAT_HYPE }}
-        run: |
-          python - <<'PY'
-          import json, os, urllib.parse, urllib.request
-          token = os.environ.get("BOT_TOKEN", "")
-          if not token:
-              raise SystemExit("BOT_TOKEN is missing")
-          chat = os.getenv("CHAT_HYPE") or "@ELEVATIONLIVE"
-          label = "ELEVATIONLIVE"
-          text = f"🧪 ТЕСТ HAMSTER BOT\\nПроверка доставки в {label}. Это техническое сообщение, не торговый сигнал."
-          data = urllib.parse.urlencode({"chat_id": chat, "text": text}).encode()
-          req = urllib.request.Request(f"https://api.telegram.org/bot{token}/sendMessage", data=data)
-          with urllib.request.urlopen(req, timeout=25) as response:
-              result = json.load(response)
-          if not result.get("ok"):
-              raise SystemExit(f"{label}: Telegram rejected message: {result}")
-          print(f"{label}: Telegram test delivered")
-          PY

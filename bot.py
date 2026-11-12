@@ -446,9 +446,10 @@ def evening_finance():
 Формат — максимум 4 пункта, каждый до 3 коротких предложений. Если надёжных важных новостей нет, сообщи об этом."""
     news = call_grok(news_system, news_prompt, use_tools=True, allow_tool_fallback=False)
     if news and ("https://" in news or "http://" in news):
-        news_block = news
+        news_section = f"\n📰 <b>Главное за день — только важные новости</b>\n{news}\n"
     else:
-        news_block = "Не удалось подтвердить важные новости ссылками на источники. Не будем публиковать неподтверждённые заголовки."
+        logger.info("В вечернем обзоре нет новостей со ссылками — блок новостей пропускаем")
+        news_section = ""
 
     text = f"""🌙 <b>Вечерний обзор рынка | Палата Хомяка</b>
 
@@ -459,10 +460,7 @@ def evening_finance():
 👑 Доминация BTC: {btc_dom:.1f}%
 💰 Капитализация рынка: \${total_mcap/1e12:.2f}T
 😨 Fear & Greed: {fng.get('value', '?')}
-
-📰 <b>Главное за день — только важные новости</b>
-{news_block}
-
+{news_section}
 ⚠️ <i>Информационный контент. Не является финансовой рекомендацией.</i>"""
     send(CHAT_FINANCE, text)
 
