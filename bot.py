@@ -436,7 +436,7 @@ def evening_finance():
 {format_price(prices, 'binancecoin', 'BNB')}
 
 👑 Доминация BTC: {btc_dom:.1f}%
-💰 Общая капитализация: \${total_mcap/1e12:.2f}T
+💰 Общая капитализация: ${total_mcap/1e12:.2f}T
 😨 Индекс страха и жадности: {fng.get('value', '?')} ({fng.get('value_classification', 'N/A')})
 
 {movers}
@@ -457,7 +457,6 @@ if __name__ == "__main__":
         "evening_finance": evening_finance,
         "grok_morning": lambda: grok_finance_post("morning"),
         "grok_midday": lambda: grok_finance_post("midday"),
-        "grok_evening": lambda: grok_finance_post("evening"),
         "grok_motivation": grok_motivation_post,
     }
     func = modes.get(mode)
