@@ -36,7 +36,7 @@ def send_to_vk(chat_id: str, text: str) -> None:
         return
     if chat_id == CHAT_FINANCE:
         group_id, telegram_url = VK_FINANCE_GROUP_ID, VK_FINANCE_TG_URL
-    elif chat_id == CHAT_HYPE:
+    elif chat_id == (CHAT_HYPE or "@ELEVATIONLIVE"):
         group_id, telegram_url = VK_HYPE_GROUP_ID, VK_HYPE_TG_URL
     else:
         return
