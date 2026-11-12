@@ -1,6 +1,8 @@
 name: Auto Posts
 
 on:
+  push:
+    branches: [main]
   schedule:
     # Время UTC; все публикации выходят по Москве (UTC+3).
     - cron: '0 5 * * *'   # 08:00 — утренний обзор рынка + экономический календарь
@@ -115,3 +117,44 @@ jobs:
           VK_FINANCE_TG_URL: ${{ secrets.VK_FINANCE_TG_URL }}
           MODE: evening_finance
         run: python bot.py
+
+  smoke_test:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Check Python syntax
+        run: python -m py_compile bot.py
+      - name: Send Telegram test messages
+        env:
+          BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+          CHAT_FINANCE: ${{ secrets.CHAT_FINANCE }}
+          CHAT_HYPE: ${{ secrets.CHAT_HYPE }}
+        run: |
+          python - <<'PY'
+          import json, os, urllib.parse, urllib.request
+          token = os.environ.get("BOT_TOKEN", "")
+          if not token:
+              raise SystemExit("BOT_TOKEN is missing")
+          chats = [("Палата Хомяка", os.getenv("CHAT_FINANCE", "")),
+                   ("ELEVATIONLIVE", os.getenv("CHAT_HYPE", ""))]
+          sent = 0
+          for label, chat in chats:
+              if not chat:
+                  print(f"{label}: chat secret missing, skipped")
+                  continue
+              text = f"🧪 ТЕСТ HAMSTER BOT\\nПроверка доставки в {label}. Это техническое сообщение, не торговый сигнал."
+              data = urllib.parse.urlencode({"chat_id": chat, "text": text}).encode()
+              req = urllib.request.Request(f"https://api.telegram.org/bot{token}/sendMessage", data=data)
+              with urllib.request.urlopen(req, timeout=25) as response:
+                  result = json.load(response)
+              if not result.get("ok"):
+                  raise SystemExit(f"{label}: Telegram rejected message: {result}")
+              print(f"{label}: Telegram test delivered")
+              sent += 1
+          if not sent:
+              raise SystemExit("No Telegram chat IDs configured")
+          PY
