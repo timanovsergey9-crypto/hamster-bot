@@ -10,10 +10,24 @@ on:
     - cron: '0 10 * * *'  # 13:00 — Палата Хомяка, образовательная рубрика
     - cron: '0 15 * * *'  # 18:00 — ELEVATIONLIVE, вечер
     - cron: '0 16 * * *'  # 19:00 — вечерний обзор рынка + главные новости
+  workflow_dispatch:
+    inputs:
+      slot:
+        description: "Какой слот опубликовать. Значение none ничего не публикует."
+        required: true
+        type: choice
+        default: none
+        options:
+          - none
+          - morning_market
+          - motivation_morning
+          - finance_education
+          - motivation_evening
+          - evening_market
 
 jobs:
   morning_market:
-    if: github.event.schedule == '0 5 * * *'
+    if: github.event.schedule == '0 5 * * *' || (github.event_name == 'workflow_dispatch' && inputs.slot == 'morning_market')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -35,7 +49,7 @@ jobs:
         run: python bot.py
 
   motivation_morning:
-    if: github.event.schedule == '0 6 * * *'
+    if: github.event.schedule == '0 6 * * *' || (github.event_name == 'workflow_dispatch' && inputs.slot == 'motivation_morning')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -57,7 +71,7 @@ jobs:
         run: python bot.py
 
   finance_education:
-    if: github.event.schedule == '0 10 * * *'
+    if: github.event.schedule == '0 10 * * *' || (github.event_name == 'workflow_dispatch' && inputs.slot == 'finance_education')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -77,7 +91,7 @@ jobs:
         run: python bot.py
 
   motivation_evening:
-    if: github.event.schedule == '0 15 * * *'
+    if: github.event.schedule == '0 15 * * *' || (github.event_name == 'workflow_dispatch' && inputs.slot == 'motivation_evening')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -99,7 +113,7 @@ jobs:
         run: python bot.py
 
   evening_market:
-    if: github.event.schedule == '0 16 * * *'
+    if: github.event.schedule == '0 16 * * *' || (github.event_name == 'workflow_dispatch' && inputs.slot == 'evening_market')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
