@@ -13,6 +13,11 @@ CHAT_FINANCE = os.getenv("CHAT_FINANCE")
 CHAT_QUOTES = os.getenv("CHAT_QUOTES")
 CHAT_HYPE = os.getenv("CHAT_HYPE") or "@ELEVATIONLIVE"
 XAI_API_KEY = os.getenv("XAI_API_KEY")
+VK_ACCESS_TOKEN = os.getenv("VK_ACCESS_TOKEN")
+VK_FINANCE_GROUP_ID = os.getenv("VK_FINANCE_GROUP_ID")
+VK_HYPE_GROUP_ID = os.getenv("VK_HYPE_GROUP_ID")
+VK_FINANCE_TG_URL = os.getenv("VK_FINANCE_TG_URL") or "https://t.me/homyaktragy"
+VK_HYPE_TG_URL = os.getenv("VK_HYPE_TG_URL") or "https://t.me/ELEVATIONLIVE"
 TIMEOUT = 30
 MSK = timezone(timedelta(hours=3))
 
@@ -25,6 +30,39 @@ def safe_get(url: str, params: Optional[Dict] = None) -> Optional[Dict[str, Any]
         logger.error(f"Ошибка запроса к {url}: {e}")
         return None
 
+def send_to_vk(chat_id: str, text: str) -> None:
+    """Необязательная публикация копии в VK. Без VK-секретов работает только Telegram."""
+    if not VK_ACCESS_TOKEN:
+        return
+    if chat_id == CHAT_FINANCE:
+        group_id, telegram_url = VK_FINANCE_GROUP_ID, VK_FINANCE_TG_URL
+    elif chat_id == (CHAT_HYPE or "@ELEVATIONLIVE"):
+        group_id, telegram_url = VK_HYPE_GROUP_ID, VK_HYPE_TG_URL
+    else:
+        return
+    if not group_id:
+        return
+    try:
+        import re
+        clean_text = re.sub(r"<[^>]+>", "", text)
+        clean_text = clean_text.replace("&amp;", "&").replace("&lt;", "<").replace("&gt;", ">")
+        clean_text += f"\n\nБольше материалов и оперативные публикации — {telegram_url}"
+        response = requests.post(
+            "https://api.vk.com/method/wall.post",
+            data={"owner_id": -abs(int(group_id)), "from_group": 1, "message": clean_text,
+                  "access_token": VK_ACCESS_TOKEN, "v": "5.199"},
+            timeout=TIMEOUT
+        )
+        response.raise_for_status()
+        result = response.json()
+        if "error" in result:
+            logger.error("Ошибка VK API: %s", result["error"])
+        else:
+            logger.info("Публикация отправлена в VK-группу %s", group_id)
+    except Exception as e:
+        logger.error("Ошибка публикации в VK: %s", e)
+
+
 def send(chat_id: str, text: str) -> bool:
     if not TOKEN or not chat_id:
         logger.error(f"Не заданы TOKEN или CHAT_ID (chat_id={chat_id})")
@@ -35,11 +73,11 @@ def send(chat_id: str, text: str) -> bool:
         resp = requests.post(url, json=payload, timeout=TIMEOUT)
         resp.raise_for_status()
         logger.info(f"Сообщение отправлено в {chat_id}")
+        send_to_vk(chat_id, text)
         return True
     except Exception as e:
         logger.error(f"Ошибка отправки в {chat_id}: {e}")
         return False
-
 def send_photo(chat_id: str, photo_url: str, caption: str) -> bool:
     if not TOKEN or not chat_id:
         logger.error("Не заданы TOKEN или CHAT_ID")
@@ -149,7 +187,7 @@ def grok_finance_post(slot: str):
         logger.error(f"Не удалось сгенерировать Grok-пост ({slot})")
 
 
-def grok_motivation_post():
+def grok_motivation_post(slot: str = "morning"):
     """Авторская ежедневная публикация для ELEVATIONLIVE."""
     target = CHAT_HYPE or "@ELEVATIONLIVE"
     logger.info(f"Отправляем материал в: {target}")
@@ -175,7 +213,7 @@ def grok_motivation_post():
         ("ЛИЧНЫЕ ГРАНИЦЫ", "Почему не каждое чужое ожидание должно становиться твоей обязанностью."),
         ("ВОССТАНОВЛЕНИЕ", "Как вернуться к делу после срыва режима без самобичевания и обещаний начать новую жизнь.")
     ]
-    label, theme = topic_for_slot(themes, "morning")
+    label, theme = topic_for_slot(themes, slot)
     user_prompt = f"""Формат рубрики «{label}».
 Напиши самостоятельную публикацию на тему: {theme}
 Начни с сильного наблюдения, затем раскрой мысль через конкретную ситуацию и закончи практичным выводом.
@@ -236,7 +274,7 @@ def get_economic_calendar(days_ahead: int = 1) -> List[Dict]:
         try:
             dt = datetime.fromisoformat(ev["date"].replace("Z", "+00:00"))
             dt_msk = dt.astimezone(MSK)
-            if dt_msk.date() == today or (dt_msk.date() - today).days <= days_ahead:
+            if 0 <= (dt_msk.date() - today).days <= days_ahead:
                 result.append({
                     "name": ev.get("name", ""),
                     "currency": ev.get("currency", ""),
@@ -388,20 +426,39 @@ def evening_finance():
     if not data or not data.get("prices"):
         send(CHAT_FINANCE, "⚠️ Не удалось получить вечерние данные.")
         return
-    
+
     prices = data["prices"]
     fng = data["fng"]
-    
-    text = f"""🌙 <b>Вечерний итог | Палата Хомяка</b>
+    global_info = data.get("global", {})
+    btc_dom = global_info.get("market_cap_percentage", {}).get("btc", 0)
+    total_mcap = global_info.get("total_market_cap", {}).get("usd", 0)
 
-За сегодня:
+    news_system = """Ты выпускающий редактор финансового Telegram-канала.
+Используй веб-поиск и проверяемые первоисточники. Никаких выдуманных событий, цифр, цитат и прогнозов.
+Отбирай только 2–4 действительно важные новости за последние 24 часа, способные повлиять на крипторынок и риск-активы.
+Приоритет: ФРС и другие центробанки, инфляция, занятость, макроданные США, регулирование, ETF/крупные институциональные события, системные сбои и значимые события криптоиндустрии.
+Каждую новость объясняй коротко: что произошло → почему важно → возможное влияние на рынок.
+Пиши простым русским языком. Если важного не было, прямо скажи это. В конце укажи 1–3 ссылки на использованные источники."""
+    news_prompt = f"""Сейчас {datetime.now(MSK).strftime('%d.%m.%Y %H:%M')} по Москве.
+Подготовь вечернюю подборку только самых важных подтверждённых новостей за последние 24 часа.
+Не включай слухи, обычные движения цены и второстепенные корпоративные новости.
+Отдельно проверь, были ли сегодня решения/заявления ФРС, данные по инфляции и рынку труда США.
+Формат — максимум 4 пункта, каждый до 3 коротких предложений. Если надёжных важных новостей нет, сообщи об этом."""
+    news = call_grok(news_system, news_prompt, use_tools=True)
+    news_block = news or "Не удалось надёжно проверить новостную повестку. Не будем публиковать неподтверждённые заголовки."
+
+    text = f"""🌙 <b>Вечерний обзор рынка | Палата Хомяка</b>
+
+📊 <b>Рынок к вечеру:</b>
 {format_price(prices, 'bitcoin', 'BTC')}
 {format_price(prices, 'ethereum', 'ETH')}
 {format_price(prices, 'solana', 'SOL')}
-
+👑 Доминация BTC: {btc_dom:.1f}%
+💰 Капитализация рынка: \${total_mcap/1e12:.2f}T
 😨 Fear & Greed: {fng.get('value', '?')}
 
-Завтра новый день. Отдыхай и не перетрейвай графики ночью.
+📰 <b>Главное за день — только важные новости</b>
+{news_block}
 
 ⚠️ <i>Информационный контент. Не является финансовой рекомендацией.</i>"""
     send(CHAT_FINANCE, text)
@@ -417,7 +474,8 @@ if __name__ == "__main__":
         "grok_morning": lambda: grok_finance_post("morning"),
         "grok_midday": lambda: grok_finance_post("midday"),
         "grok_evening": lambda: grok_finance_post("evening"),
-        "grok_motivation": grok_motivation_post,
+        "grok_motivation_morning": lambda: grok_motivation_post("morning"),
+        "grok_motivation_evening": lambda: grok_motivation_post("evening"),
     }
     func = modes.get(mode)
     if func:
