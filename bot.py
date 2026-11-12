@@ -100,7 +100,7 @@ def send_photo(chat_id: str, photo_url: str, caption: str) -> bool:
 
 # ==================== GROK ====================
 
-def call_grok(system: str, user_prompt: str, use_tools: bool = False) -> Optional[str]:
+def call_grok(system: str, user_prompt: str, use_tools: bool = False, allow_tool_fallback: bool = True) -> Optional[str]:
     if not XAI_API_KEY:
         logger.error("XAI_API_KEY не задан")
         return None
@@ -132,8 +132,10 @@ def call_grok(system: str, user_prompt: str, use_tools: bool = False) -> Optiona
         if resp.status_code != 200:
             logger.error(f"Grok API error {resp.status_code}: {resp.text[:500]}")
             if use_tools:
+                if allow_tool_fallback:
                 logger.info("Пробуем без tools...")
                 return call_grok(system, user_prompt, use_tools=False)
+            return None
             return None
         data = resp.json()
         content = data["choices"][0]["message"]["content"].strip()
@@ -444,8 +446,11 @@ def evening_finance():
 Не включай слухи, обычные движения цены и второстепенные корпоративные новости.
 Отдельно проверь, были ли сегодня решения/заявления ФРС, данные по инфляции и рынку труда США.
 Формат — максимум 4 пункта, каждый до 3 коротких предложений. Если надёжных важных новостей нет, сообщи об этом."""
-    news = call_grok(news_system, news_prompt, use_tools=True)
-    news_block = news or "Не удалось надёжно проверить новостную повестку. Не будем публиковать неподтверждённые заголовки."
+    news = call_grok(news_system, news_prompt, use_tools=True, allow_tool_fallback=False)
+    if news and ("https://" in news or "http://" in news):
+        news_block = news
+    else:
+        news_block = "Не удалось подтвердить важные новости ссылками на источники. Не будем публиковать неподтверждённые заголовки."
 
     text = f"""🌙 <b>Вечерний обзор рынка | Палата Хомяка</b>
 
