@@ -221,7 +221,7 @@ def get_market_data():
         "trending": trending or {}
     }
 
-def get_economic_calendar(days_ahead: int = 1) -> List[Dict]:
+def get_economic_calendar(days_ahead: int = 1, from_tomorrow: bool = False) -> List[Dict]:
     data = safe_get("https://pipatlas.com/api/calendar")
     if not data or "events" not in data:
         return []
@@ -236,7 +236,9 @@ def get_economic_calendar(days_ahead: int = 1) -> List[Dict]:
         try:
             dt = datetime.fromisoformat(ev["date"].replace("Z", "+00:00"))
             dt_msk = dt.astimezone(MSK)
-            if dt_msk.date() == today or (dt_msk.date() - today).days <= days_ahead:
+            day_offset = (dt_msk.date() - today).days
+            min_offset = 1 if from_tomorrow else 0
+            if min_offset <= day_offset <= days_ahead and (from_tomorrow or dt_msk > now):
                 result.append({
                     "name": ev.get("name", ""),
                     "currency": ev.get("currency", ""),
@@ -383,25 +385,64 @@ def afternoon_finance():
 ⚠️ <i>Информационный контент.</i>"""
     send(CHAT_FINANCE, text)
 
+def grok_evening_news_brief() -> str:
+    """Короткая сводка только по главным проверенным новостям последних суток."""
+    system = """Ты выпускающий редактор финансового Telegram-канала «Палата Хомяка».
+Используй веб-поиск и проверяй актуальность каждой новости по надежным первичным или крупным деловым источникам.
+Отбирай максимум 3 действительно значимых события последних 24 часов, способных повлиять на крипторынок, доллар, доходности или аппетит к риску.
+Приоритет: ФРС и решения/заявления центробанков, инфляция, рынок труда США, важные макроданные, крупные регуляторные решения и системные события крипторынка.
+Не включай слухи, мелкие листинги, рекламные новости и обычные колебания цен.
+Для каждого пункта пиши очень коротко: что произошло → почему это важно → возможное влияние на рынки, без категоричных прогнозов.
+Указывай точную дату события и ссылку на источник, если она доступна. Не выдумывай факты, даты, цитаты и ссылки.
+Если за последние сутки нет действительно важных подтвержденных событий, прямо так и скажи.
+Формат до 900 символов, простой русский язык, без длинного вступления."""
+    prompt = f"""Подготовь вечернюю новостную сводку на текущую дату {datetime.now(MSK).strftime('%d.%m.%Y')} (московское время).
+Только ключевые новости, особенно решения и сигналы ФРС. Не повторяй старые новости как новые."""
+    return call_grok(system, prompt, use_tools=True) or ""
+
+
 def evening_finance():
     data = get_market_data()
     if not data or not data.get("prices"):
-        send(CHAT_FINANCE, "⚠️ Не удалось получить вечерние данные.")
+        send(CHAT_FINANCE, "⚠️ Не удалось получить вечерние данные рынка.")
         return
-    
+
     prices = data["prices"]
     fng = data["fng"]
-    
-    text = f"""🌙 <b>Вечерний итог | Палата Хомяка</b>
+    global_info = data.get("global", {})
+    btc_dom = global_info.get("market_cap_percentage", {}).get("btc", 0)
+    total_mcap = global_info.get("total_market_cap", {}).get("usd", 0)
+    movers = get_top_movers(data.get("markets", []), 2)
 
-За сегодня:
+    calendar = get_economic_calendar(1, from_tomorrow=True)
+    cal_text = ""
+    if calendar:
+        lines = []
+        for ev in calendar:
+            impact_emoji = "🔴" if ev["impact"] == "High" else "🟡"
+            forecast = f" (прогноз: {ev['forecast']})" if ev["forecast"] else ""
+            lines.append(f"{impact_emoji} {ev['time_msk']} МСК — {ev['currency']} {ev['name']}{forecast}")
+        cal_text = "\n\n📅 <b>Что важно завтра:</b>\n" + "\n".join(lines)
+
+    news = grok_evening_news_brief()
+    news_text = news if news else "Не удалось получить подтверждённую новостную сводку. Не будем подменять её догадками."
+
+    text = f"""🌙 <b>Вечерний обзор рынка | Палата Хомяка</b>
+
+📊 <b>Рынок:</b>
 {format_price(prices, 'bitcoin', 'BTC')}
 {format_price(prices, 'ethereum', 'ETH')}
 {format_price(prices, 'solana', 'SOL')}
+{format_price(prices, 'binancecoin', 'BNB')}
 
-😨 Fear & Greed: {fng.get('value', '?')}
+👑 Доминация BTC: {btc_dom:.1f}%
+💰 Общая капитализация: \${total_mcap/1e12:.2f}T
+😨 Индекс страха и жадности: {fng.get('value', '?')} ({fng.get('value_classification', 'N/A')})
 
-Завтра новый день. Отдыхай и не перетрейвай графики ночью.
+{movers}
+
+📰 <b>Главное за день:</b>
+{news_text}{cal_text}
 
 ⚠️ <i>Информационный контент. Не является финансовой рекомендацией.</i>"""
     send(CHAT_FINANCE, text)
