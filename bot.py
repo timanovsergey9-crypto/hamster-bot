@@ -131,11 +131,9 @@ def call_grok(system: str, user_prompt: str, use_tools: bool = False, allow_tool
         resp = requests.post(url, headers=headers, json=payload, timeout=90)
         if resp.status_code != 200:
             logger.error(f"Grok API error {resp.status_code}: {resp.text[:500]}")
-            if use_tools:
-                if allow_tool_fallback:
+            if use_tools and allow_tool_fallback:
                 logger.info("Пробуем без tools...")
                 return call_grok(system, user_prompt, use_tools=False)
-            return None
             return None
         data = resp.json()
         content = data["choices"][0]["message"]["content"].strip()
