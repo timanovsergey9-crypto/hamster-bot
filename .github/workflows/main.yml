@@ -7,33 +7,15 @@ on:
     - cron: '30 9 * * *'     # 12:30 MSK — midday_finance
     - cron: '0 13 * * *'     # 16:00 MSK — afternoon_finance
     - cron: '0 17 * * *'     # 20:00 MSK — evening_finance
-    # Grok посты (+130 мин)
+    # Дополнительные авторские публикации
     - cron: '10 7 * * *'     # 10:10 MSK — grok_morning
     - cron: '40 11 * * *'    # 14:40 MSK — grok_midday
-    - cron: '10 19 * * *'    # 22:10 MSK — grok_evening
     # Мотивация
     - cron: '30 10 * * *'    # 13:30 MSK — grok_motivation
-  workflow_dispatch:
-    inputs:
-      job:
-        description: 'Какую публикацию запустить вручную'
-        required: true
-        type: choice
-        default: grok_morning
-        options:
-          - grok_morning
-          - grok_midday
-          - grok_evening
-          - morning_old
-          - midday_old
-          - afternoon
-          - evening_old
-          - motivation
-          - all
 
 jobs:
   morning_old:
-    if: github.event.schedule == '0 5 * * *' || (github.event_name == 'workflow_dispatch' && (inputs.job == 'morning_old' || inputs.job == 'all'))
+    if: github.event.schedule == '0 5 * * *'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -51,7 +33,7 @@ jobs:
         run: python bot.py
 
   grok_morning:
-    if: github.event.schedule == '10 7 * * *' || (github.event_name == 'workflow_dispatch' && (inputs.job == 'grok_morning' || inputs.job == 'all'))
+    if: github.event.schedule == '10 7 * * *'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -69,7 +51,7 @@ jobs:
         run: python bot.py
 
   midday_old:
-    if: github.event.schedule == '30 9 * * *' || (github.event_name == 'workflow_dispatch' && (inputs.job == 'midday_old' || inputs.job == 'all'))
+    if: github.event.schedule == '30 9 * * *'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -86,7 +68,7 @@ jobs:
         run: python bot.py
 
   grok_midday:
-    if: github.event.schedule == '40 11 * * *' || (github.event_name == 'workflow_dispatch' && (inputs.job == 'grok_midday' || inputs.job == 'all'))
+    if: github.event.schedule == '40 11 * * *'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -104,7 +86,7 @@ jobs:
         run: python bot.py
 
   motivation:
-    if: github.event.schedule == '30 10 * * *' || (github.event_name == 'workflow_dispatch' && (inputs.job == 'motivation' || inputs.job == 'all'))
+    if: github.event.schedule == '30 10 * * *'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -121,7 +103,7 @@ jobs:
         run: python bot.py
 
   afternoon:
-    if: github.event.schedule == '0 13 * * *' || (github.event_name == 'workflow_dispatch' && (inputs.job == 'afternoon' || inputs.job == 'all'))
+    if: github.event.schedule == '0 13 * * *'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -138,7 +120,7 @@ jobs:
         run: python bot.py
 
   evening_old:
-    if: github.event.schedule == '0 17 * * *' || (github.event_name == 'workflow_dispatch' && (inputs.job == 'evening_old' || inputs.job == 'all'))
+    if: github.event.schedule == '0 17 * * *'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -152,22 +134,4 @@ jobs:
           CHAT_FINANCE: ${{ secrets.CHAT_FINANCE }}
           XAI_API_KEY: ${{ secrets.XAI_API_KEY }}
           MODE: evening_finance
-        run: python bot.py
-
-  grok_evening:
-    if: github.event.schedule == '10 19 * * *' || (github.event_name == 'workflow_dispatch' && (inputs.job == 'grok_evening' || inputs.job == 'all'))
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-      - run: pip install requests
-      - name: Grok Evening
-        env:
-          BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
-          CHAT_FINANCE: ${{ secrets.CHAT_FINANCE }}
-          CHAT_HYPE: ${{ secrets.CHAT_HYPE }}
-          XAI_API_KEY: ${{ secrets.XAI_API_KEY }}
-          MODE: grok_evening
         run: python bot.py
