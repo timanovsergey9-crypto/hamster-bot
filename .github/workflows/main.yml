@@ -14,10 +14,26 @@ on:
     # Мотивация
     - cron: '30 10 * * *'    # 13:30 MSK — grok_motivation
   workflow_dispatch:
+    inputs:
+      job:
+        description: 'Какую публикацию запустить вручную'
+        required: true
+        type: choice
+        default: grok_morning
+        options:
+          - grok_morning
+          - grok_midday
+          - grok_evening
+          - morning_old
+          - midday_old
+          - afternoon
+          - evening_old
+          - motivation
+          - all
 
 jobs:
   morning_old:
-    if: github.event.schedule == '0 5 * * *' || github.event_name == 'workflow_dispatch'
+    if: github.event.schedule == '0 5 * * *' || (github.event_name == 'workflow_dispatch' && (inputs.job == 'morning_old' || inputs.job == 'all'))
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -35,7 +51,7 @@ jobs:
         run: python bot.py
 
   grok_morning:
-    if: github.event.schedule == '10 7 * * *' || github.event_name == 'workflow_dispatch'
+    if: github.event.schedule == '10 7 * * *' || (github.event_name == 'workflow_dispatch' && (inputs.job == 'grok_morning' || inputs.job == 'all'))
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -53,7 +69,7 @@ jobs:
         run: python bot.py
 
   midday_old:
-    if: github.event.schedule == '30 9 * * *' || github.event_name == 'workflow_dispatch'
+    if: github.event.schedule == '30 9 * * *' || (github.event_name == 'workflow_dispatch' && (inputs.job == 'midday_old' || inputs.job == 'all'))
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -70,7 +86,7 @@ jobs:
         run: python bot.py
 
   grok_midday:
-    if: github.event.schedule == '40 11 * * *' || github.event_name == 'workflow_dispatch'
+    if: github.event.schedule == '40 11 * * *' || (github.event_name == 'workflow_dispatch' && (inputs.job == 'grok_midday' || inputs.job == 'all'))
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -88,7 +104,7 @@ jobs:
         run: python bot.py
 
   motivation:
-    if: github.event.schedule == '30 10 * * *' || github.event_name == 'workflow_dispatch'
+    if: github.event.schedule == '30 10 * * *' || (github.event_name == 'workflow_dispatch' && (inputs.job == 'motivation' || inputs.job == 'all'))
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -105,7 +121,7 @@ jobs:
         run: python bot.py
 
   afternoon:
-    if: github.event.schedule == '0 13 * * *' || github.event_name == 'workflow_dispatch'
+    if: github.event.schedule == '0 13 * * *' || (github.event_name == 'workflow_dispatch' && (inputs.job == 'afternoon' || inputs.job == 'all'))
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -122,7 +138,7 @@ jobs:
         run: python bot.py
 
   evening_old:
-    if: github.event.schedule == '0 17 * * *' || github.event_name == 'workflow_dispatch'
+    if: github.event.schedule == '0 17 * * *' || (github.event_name == 'workflow_dispatch' && (inputs.job == 'evening_old' || inputs.job == 'all'))
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -139,7 +155,7 @@ jobs:
         run: python bot.py
 
   grok_evening:
-    if: github.event.schedule == '10 19 * * *' || github.event_name == 'workflow_dispatch'
+    if: github.event.schedule == '10 19 * * *' || (github.event_name == 'workflow_dispatch' && (inputs.job == 'grok_evening' || inputs.job == 'all'))
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
