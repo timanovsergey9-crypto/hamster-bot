@@ -39,11 +39,6 @@ jobs:
           BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
           CHAT_FINANCE: ${{ secrets.CHAT_FINANCE }}
           XAI_API_KEY: ${{ secrets.XAI_API_KEY }}
-          VK_ACCESS_TOKEN: ${{ secrets.VK_ACCESS_TOKEN }}
-          VK_FINANCE_GROUP_ID: ${{ secrets.VK_FINANCE_GROUP_ID }}
-          VK_HYPE_GROUP_ID: ${{ secrets.VK_HYPE_GROUP_ID }}
-          VK_FINANCE_TG_URL: ${{ secrets.VK_FINANCE_TG_URL }}
-          VK_HYPE_TG_URL: ${{ secrets.VK_HYPE_TG_URL }}
           MODE: morning_finance
         run: python bot.py
 
@@ -61,11 +56,6 @@ jobs:
           BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
           CHAT_HYPE: ${{ secrets.CHAT_HYPE }}
           XAI_API_KEY: ${{ secrets.XAI_API_KEY }}
-          VK_ACCESS_TOKEN: ${{ secrets.VK_ACCESS_TOKEN }}
-          VK_FINANCE_GROUP_ID: ${{ secrets.VK_FINANCE_GROUP_ID }}
-          VK_HYPE_GROUP_ID: ${{ secrets.VK_HYPE_GROUP_ID }}
-          VK_FINANCE_TG_URL: ${{ secrets.VK_FINANCE_TG_URL }}
-          VK_HYPE_TG_URL: ${{ secrets.VK_HYPE_TG_URL }}
           MODE: grok_motivation_morning
         run: python bot.py
 
@@ -83,9 +73,6 @@ jobs:
           BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
           CHAT_FINANCE: ${{ secrets.CHAT_FINANCE }}
           XAI_API_KEY: ${{ secrets.XAI_API_KEY }}
-          VK_ACCESS_TOKEN: ${{ secrets.VK_ACCESS_TOKEN }}
-          VK_FINANCE_GROUP_ID: ${{ secrets.VK_FINANCE_GROUP_ID }}
-          VK_FINANCE_TG_URL: ${{ secrets.VK_FINANCE_TG_URL }}
           MODE: grok_midday
         run: python bot.py
 
@@ -103,11 +90,6 @@ jobs:
           BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
           CHAT_HYPE: ${{ secrets.CHAT_HYPE }}
           XAI_API_KEY: ${{ secrets.XAI_API_KEY }}
-          VK_ACCESS_TOKEN: ${{ secrets.VK_ACCESS_TOKEN }}
-          VK_FINANCE_GROUP_ID: ${{ secrets.VK_FINANCE_GROUP_ID }}
-          VK_HYPE_GROUP_ID: ${{ secrets.VK_HYPE_GROUP_ID }}
-          VK_FINANCE_TG_URL: ${{ secrets.VK_FINANCE_TG_URL }}
-          VK_HYPE_TG_URL: ${{ secrets.VK_HYPE_TG_URL }}
           MODE: grok_motivation_evening
         run: python bot.py
 
@@ -125,8 +107,5 @@ jobs:
           BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
           CHAT_FINANCE: ${{ secrets.CHAT_FINANCE }}
           XAI_API_KEY: ${{ secrets.XAI_API_KEY }}
-          VK_ACCESS_TOKEN: ${{ secrets.VK_ACCESS_TOKEN }}
-          VK_FINANCE_GROUP_ID: ${{ secrets.VK_FINANCE_GROUP_ID }}
-          VK_FINANCE_TG_URL: ${{ secrets.VK_FINANCE_TG_URL }}
           MODE: evening_finance
         run: python bot.py
