@@ -112,7 +112,7 @@ def call_grok(system: str, user_prompt: str, use_tools: bool = False, allow_tool
     }
 
     payload = {
-        "model": "grok-3",
+        "model": "grok-4-1-fast-non-reasoning",
         "messages": [
             {"role": "system", "content": system},
             {"role": "user", "content": user_prompt}
